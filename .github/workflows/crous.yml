@@ -1,1 +1,39 @@
+name: Veille CROUS 13
 
+on:
+  schedule:
+    - cron: "*/5 * * * *"    # toutes les 5 minutes (minimum autorisé par GitHub)
+  workflow_dispatch:          # bouton "Run workflow" pour tester à la main
+
+permissions:
+  contents: write             # pour sauvegarder la liste des logements déjà vus
+
+concurrency:
+  group: veille-crous
+  cancel-in-progress: false
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer les modules
+        run: pip install requests beautifulsoup4
+
+      - name: Vérifier le site du CROUS
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python crous_marseille.py --une-fois
+
+      - name: Sauvegarder les logements déjà vus
+        run: |
+          git config user.name "veille-crous"
+          git config user.email "actions@users.noreply.github.com"
+          git add logements_vus.json || true
+          git diff --cached --quiet || (git commit -m "Mise à jour logements vus" && git push)
